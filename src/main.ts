@@ -1,99 +1,177 @@
-import {App, Editor, MarkdownView, Modal, Notice, Plugin} from 'obsidian';
-import {DEFAULT_SETTINGS, MyPluginSettings, SampleSettingTab} from "./settings";
+import { Plugin, Editor, Menu } from 'obsidian';
+import { RangeSetBuilder } from '@codemirror/state';
+import {
+    Decoration,
+    DecorationSet,
+    EditorView,
+    PluginValue,
+    ViewPlugin,
+    WidgetType,
+} from '@codemirror/view';
 
-// Remember to rename these classes and interfaces!
+const AUDIO_REGEXP = /\{([^}]+)\}\(audio\)/g;
 
-export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
-
-	async onload() {
-		await this.loadSettings();
-
-		// This creates an icon in the left ribbon.
-		this.addRibbonIcon('dice', 'Sample', (evt: MouseEvent) => {
-			// Called when the user clicks the icon.
-			new Notice('This is a notice!');
-		});
-
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status bar text');
-
-		// This adds a simple command that can be triggered anywhere
-		this.addCommand({
-			id: 'open-modal-simple',
-			name: 'Open modal (simple)',
-			callback: () => {
-				new SampleModal(this.app).open();
-			}
-		});
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'replace-selected',
-			name: 'Replace selected content',
-			editorCallback: (editor: Editor, view: MarkdownView) => {
-				editor.replaceSelection('Sample editor command');
-			}
-		});
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
-		this.addCommand({
-			id: 'open-modal-complex',
-			name: 'Open modal (complex)',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
-					}
-
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
-				}
-				return false;
-			}
-		});
-
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
-
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			new Notice("Click");
-		});
-
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
-
-	}
-
-	onunload() {
-	}
-
-	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData() as Partial<MyPluginSettings>);
-	}
-
-	async saveSettings() {
-		await this.saveData(this.settings);
-	}
+// --- 1. 编辑模式的小喇叭图标 Widget ---
+class AudioIconWidget extends WidgetType {
+    constructor(readonly text: string, readonly playFn: (t: string) => void) {
+        super();
+    }
+    toDOM() {
+        const span = document.createElement("span");
+        span.innerText = " 🔊";
+        span.style.cursor = "pointer";
+        span.style.color = "var(--text-accent)";
+        span.style.fontSize = "0.9em";
+        span.onclick = (e) => {
+            e.preventDefault();
+            this.playFn(this.text);
+        };
+        return span;
+    }
 }
 
-class SampleModal extends Modal {
-	constructor(app: App) {
-		super(app);
-	}
+// --- 2. Live Preview 核心逻辑 ---
+const audioLivePreview = (playFn: (t: string) => void) => ViewPlugin.fromClass(
+    class implements PluginValue {
+        decorations: DecorationSet;
+        constructor(view: EditorView) { this.decorations = this.buildDecorations(view); }
+        update(update: any) {
+            if (update.docChanged || update.viewportChanged || update.selectionSet) {
+                this.decorations = this.buildDecorations(update.view);
+            }
+        }
+        buildDecorations(view: EditorView) {
+            const builder = new RangeSetBuilder<Decoration>();
+            const selection = view.state.selection.main;
+            for (let { from, to } of view.visibleRanges) {
+                const text = view.state.doc.sliceString(from, to);
+                let match;
+                while ((match = AUDIO_REGEXP.exec(text)) !== null) {
+                    const start = from + match.index;
+                    const end = start + match[0].length;
+                    const word = match[1] || '';
+                    const isEditing = selection.from >= start && selection.to <= end;
 
-	onOpen() {
-		let {contentEl} = this;
-		contentEl.setText('Woah!');
-	}
+                    if (!isEditing) {
+                        builder.add(start, end, Decoration.replace({
+                            widget: new (class extends WidgetType {
+                                toDOM() {
+                                    const span = document.createElement("span");
+                                    span.innerText = word;
+                                    span.style.color = "var(--text-accent)";
+                                    span.style.borderBottom = "1px dashed var(--text-accent)";
+                                    span.style.cursor = "pointer";
+                                    span.onclick = () => playFn(word);
+                                    return span;
+                                }
+                            })()
+                        }));
+                        builder.add(end, end, Decoration.widget({
+                            widget: new AudioIconWidget(word, playFn),
+                            side: 1
+                        }));
+                    }
+                }
+            }
+            return builder.finish();
+        }
+    },
+    { decorations: (v) => v.decorations }
+);
 
-	onClose() {
-		const {contentEl} = this;
-		contentEl.empty();
-	}
+// --- 3. 插件主类 ---
+export default class AudioTagPlugin extends Plugin {
+    async onload() {
+        // 1. 阅读模式处理
+        this.registerMarkdownPostProcessor((el) => {
+            const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+            let node;
+            const tasks: { node: Text, matches: any[] }[] = [];
+            while (node = walker.nextNode() as Text) {
+                const matches = Array.from(node.textContent!.matchAll(AUDIO_REGEXP));
+                if (matches.length > 0) tasks.push({ node, matches });
+            }
+            tasks.forEach(({ node, matches }) => {
+                const fragment = document.createDocumentFragment();
+                let lastIdx = 0;
+                const fullText = node.textContent!;
+                matches.forEach(match => {
+                    fragment.appendChild(document.createTextNode(fullText.slice(lastIdx, match.index)));
+                    const span = fragment.createSpan({ cls: "audio-link" });
+                    span.innerText = match[1];
+                    span.style.color = "var(--text-accent)";
+                    span.style.borderBottom = "1px dashed";
+                    span.style.cursor = "pointer";
+                    span.onclick = () => this.playTTS(match[1]);
+                    const icon = span.createSpan({ text: " 🔊" });
+                    icon.style.fontSize = "0.8em";
+                    lastIdx = match.index! + match[0].length;
+                });
+                fragment.appendChild(document.createTextNode(fullText.slice(lastIdx)));
+                node.replaceWith(fragment);
+            });
+        });
+
+        // 2. 注册编辑器扩展
+        this.registerEditorExtension([audioLivePreview(this.playTTS.bind(this))]);
+
+        // 3. 右键菜单：增加取消功能
+        this.registerEvent(
+            this.app.workspace.on("editor-menu", (menu: Menu, editor: Editor) => {
+                const cursor = editor.getCursor();
+                const lineText = editor.getLine(cursor.line);
+
+                // 查找当前光标是否在某个 {word}(audio) 内部
+                let match;
+                let foundMatch = null;
+                const regex = /\{([^}]+)\}\(audio\)/g;
+
+                while ((match = regex.exec(lineText)) !== null) {
+                    const start = match.index;
+                    const end = start + match[0].length;
+                    if (cursor.ch >= start && cursor.ch <= end) {
+                        foundMatch = {
+                            full: match[0],
+                            word: match[1],
+                            start: { line: cursor.line, ch: start },
+                            end: { line: cursor.line, ch: end }
+                        };
+                        break;
+                    }
+                }
+
+                if (foundMatch) {
+                    // 如果在 Audio Tag 内部，显示取消选项
+                    menu.addItem((item) => {
+                        item
+                            .setTitle("取消 Audio Tag 转换")
+                            .setIcon("eraser")
+                            .onClick(() => {
+                                editor.replaceRange(foundMatch!.word || '', foundMatch!.start, foundMatch!.end);
+                            });
+                    });
+                } else {
+                    // 如果是普通选区，显示转换选项
+                    const selection = editor.getSelection();
+                    if (selection) {
+                        menu.addItem((item) => {
+                            item
+                                .setTitle("转为 Audio Tag")
+                                .setIcon("audio-lines")
+                                .onClick(() => {
+                                    editor.replaceSelection(`{${selection}}(audio)`);
+                                });
+                        });
+                    }
+                }
+            })
+        );
+    }
+
+    playTTS(text: string) {
+        window.speechSynthesis.cancel();
+        const msg = new SpeechSynthesisUtterance(text);
+        msg.lang = 'en-US';
+        window.speechSynthesis.speak(msg);
+    }
 }
