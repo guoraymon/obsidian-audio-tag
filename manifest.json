@@ -5,7 +5,6 @@
 	"minAppVersion": "0.15.0",
 	"description": "Embed audio players in your notes using simple tags.",
 	"author": "guoraymon",
-	"authorUrl": "https://github.com/guoraymon/obsidian-audio-tag",
-	"fundingUrl": "https://github.com/guoraymon/obsidian-audio-tag",
+	"authorUrl": "https://github.com/guoraymon",
 	"isDesktopOnly": false
 }
