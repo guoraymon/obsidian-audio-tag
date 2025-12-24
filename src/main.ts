@@ -11,6 +11,10 @@ import {
 } from '@codemirror/view';
 
 const AUDIO_REGEXP = /\{([^}]+)\}\(audio\)/g;
+const ERASER_ICON = 'eraser';
+const AUDIO_ICON = 'audio-lines';
+const ERASE_TEXT = 'Remove Audio Tag';
+const CONVERT_TEXT = 'Convert to Audio Tag';
 
 // --- 1. Speaker icon widget for edit mode ---
 class AudioIconWidget extends WidgetType {
@@ -97,7 +101,6 @@ export default class AudioTagPlugin extends Plugin {
                     const span = fragment.createSpan({ cls: "audio-link" });
                     span.innerText = match[1] || '';
                     span.onclick = () => this.playTTS(match[1] || '');
-                    const icon = span.createSpan({ text: " 🔊", cls: "audio-link-icon-in-reading" });
                     lastIdx = match.index + match[0].length;
                 });
                 fragment.appendChild(document.createTextNode(fullText.slice(lastIdx)));
@@ -137,8 +140,8 @@ export default class AudioTagPlugin extends Plugin {
                     // If inside an Audio Tag, show removal option
                     menu.addItem((item) => {
                         item
-                            .setTitle("Remove Audio Tag")
-                            .setIcon("eraser")
+                            .setTitle(ERASE_TEXT)
+                            .setIcon(ERASER_ICON)
                             .onClick(() => {
                                 editor.replaceRange(foundMatch.word || '', foundMatch.start, foundMatch.end);
                             });
@@ -149,8 +152,8 @@ export default class AudioTagPlugin extends Plugin {
                     if (selection) {
                         menu.addItem((item) => {
                             item
-                                .setTitle("Convert to Audio Tag")
-                                .setIcon("audio-lines")
+                                .setTitle(CONVERT_TEXT)
+                                .setIcon(AUDIO_ICON)
                                 .onClick(() => {
                                     editor.replaceSelection(`{${selection}}(audio)`);
                                 });
