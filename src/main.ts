@@ -95,7 +95,7 @@ export default class AudioTagPlugin extends Plugin {
             tasks.forEach(({ node, matches }) => {
                 const fragment = document.createDocumentFragment();
                 let lastIdx = 0;
-                const fullText = node.textContent!;
+                const fullText = node.textContent;
                 matches.forEach(match => {
                     fragment.appendChild(document.createTextNode(fullText.slice(lastIdx, match.index)));
                     const span = fragment.createSpan({ cls: "audio-link" });
