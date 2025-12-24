@@ -85,7 +85,7 @@ export default class AudioTagPlugin extends Plugin {
             let node;
             const tasks: { node: Text, matches: RegExpExecArray[] }[] = [];
             while ((node = walker.nextNode() as Text)) {
-                const matches = Array.from(node.textContent!.matchAll(AUDIO_REGEXP));
+                const matches = Array.from(node.textContent.matchAll(AUDIO_REGEXP));
                 if (matches.length > 0) tasks.push({ node, matches });
             }
             tasks.forEach(({ node, matches }) => {
@@ -98,7 +98,7 @@ export default class AudioTagPlugin extends Plugin {
                     span.innerText = match[1] || '';
                     span.onclick = () => this.playTTS(match[1] || '');
                     const icon = span.createSpan({ text: " 🔊", cls: "audio-link-icon-in-reading" });
-                    lastIdx = match.index! + match[0].length;
+                    lastIdx = match.index + match[0].length;
                 });
                 fragment.appendChild(document.createTextNode(fullText.slice(lastIdx)));
                 node.replaceWith(fragment);
@@ -140,7 +140,7 @@ export default class AudioTagPlugin extends Plugin {
                             .setTitle("Remove Audio Tag")
                             .setIcon("eraser")
                             .onClick(() => {
-                                editor.replaceRange(foundMatch!.word || '', foundMatch!.start, foundMatch!.end);
+                                editor.replaceRange(foundMatch.word || '', foundMatch.start, foundMatch.end);
                             });
                     });
                 } else {
