@@ -6,6 +6,7 @@ import {
     EditorView,
     PluginValue,
     ViewPlugin,
+    ViewUpdate,
     WidgetType,
 } from '@codemirror/view';
 
@@ -33,7 +34,7 @@ const audioLivePreview = (playFn: (t: string) => void) => ViewPlugin.fromClass(
     class implements PluginValue {
         decorations: DecorationSet;
         constructor(view: EditorView) { this.decorations = this.buildDecorations(view); }
-        update(update: any) {
+        update(update: ViewUpdate) {
             if (update.docChanged || update.viewportChanged || update.selectionSet) {
                 this.decorations = this.buildDecorations(update.view);
             }
@@ -77,12 +78,12 @@ const audioLivePreview = (playFn: (t: string) => void) => ViewPlugin.fromClass(
 
 // --- 3. 插件主类 ---
 export default class AudioTagPlugin extends Plugin {
-    async onload() {
+    onload() {
         // 1. 阅读模式处理
         this.registerMarkdownPostProcessor((el) => {
             const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
             let node;
-            const tasks: { node: Text, matches: any[] }[] = [];
+            const tasks: { node: Text, matches: RegExpExecArray[] }[] = [];
             while (node = walker.nextNode() as Text) {
                 const matches = Array.from(node.textContent!.matchAll(AUDIO_REGEXP));
                 if (matches.length > 0) tasks.push({ node, matches });
@@ -94,8 +95,8 @@ export default class AudioTagPlugin extends Plugin {
                 matches.forEach(match => {
                     fragment.appendChild(document.createTextNode(fullText.slice(lastIdx, match.index)));
                     const span = fragment.createSpan({ cls: "audio-link" });
-                    span.innerText = match[1];
-                    span.onclick = () => this.playTTS(match[1]);
+                    span.innerText = match[1] || '';
+                    span.onclick = () => this.playTTS(match[1] || '');
                     const icon = span.createSpan({ text: " 🔊", cls: "audio-link-icon-in-reading" });
                     lastIdx = match.index! + match[0].length;
                 });
