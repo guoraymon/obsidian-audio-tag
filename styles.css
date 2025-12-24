@@ -6,3 +6,19 @@ available in the app when your plugin is enabled.
 If your plugin does not need CSS, delete this file.
 
 */
+
+.audio-link {
+    color: var(--text-accent);
+    border-bottom: 1px dashed;
+    cursor: pointer;
+}
+
+.audio-link-icon {
+    cursor: pointer;
+    color: var(--text-accent);
+    font-size: 0.9em;
+}
+
+.audio-link-icon-in-reading {
+    font-size: 0.8em;
+}

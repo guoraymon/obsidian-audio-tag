@@ -19,9 +19,7 @@ class AudioIconWidget extends WidgetType {
     toDOM() {
         const span = document.createElement("span");
         span.innerText = " 🔊";
-        span.style.cursor = "pointer";
-        span.style.color = "var(--text-accent)";
-        span.style.fontSize = "0.9em";
+        span.addClass("audio-link-icon");
         span.onclick = (e) => {
             e.preventDefault();
             this.playFn(this.text);
@@ -58,9 +56,7 @@ const audioLivePreview = (playFn: (t: string) => void) => ViewPlugin.fromClass(
                                 toDOM() {
                                     const span = document.createElement("span");
                                     span.innerText = word;
-                                    span.style.color = "var(--text-accent)";
-                                    span.style.borderBottom = "1px dashed var(--text-accent)";
-                                    span.style.cursor = "pointer";
+                                    span.addClass("audio-link");
                                     span.onclick = () => playFn(word);
                                     return span;
                                 }
@@ -99,12 +95,8 @@ export default class AudioTagPlugin extends Plugin {
                     fragment.appendChild(document.createTextNode(fullText.slice(lastIdx, match.index)));
                     const span = fragment.createSpan({ cls: "audio-link" });
                     span.innerText = match[1];
-                    span.style.color = "var(--text-accent)";
-                    span.style.borderBottom = "1px dashed";
-                    span.style.cursor = "pointer";
                     span.onclick = () => this.playTTS(match[1]);
-                    const icon = span.createSpan({ text: " 🔊" });
-                    icon.style.fontSize = "0.8em";
+                    const icon = span.createSpan({ text: " 🔊", cls: "audio-link-icon-in-reading" });
                     lastIdx = match.index! + match[0].length;
                 });
                 fragment.appendChild(document.createTextNode(fullText.slice(lastIdx)));
